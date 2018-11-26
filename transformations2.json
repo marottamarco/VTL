@@ -1,0 +1,55 @@
+[
+  {
+    "transformationId":"D_ENTRPRS_SZ_CLCLTD_1_11",
+    "expression":"ALL := [inner PRLMNRY_STTNG as \"A\", CNTRPRTS_PRVS as \"B\" on A.CNTRPRTY_ID = B.CNTRPRTY_ID] {keep (A.CNTRPRTY_ID, A.ENTRPRS_SZ_PRLMNRY_T, B.ENTRPRS_SZ_CLCLTD, B.ENTRPRS_SZ_PRLMNRY)};"
+  }
+]
+
+/*
+FNL_STTNG := FNL_STTNG [calc \"T\" as \"IS_DRVD_ENTRPRS_SZ\" role Measure];
+-->
+FNL_STTNG := FNL_STTNG [calc measure IS_DRVD_ENTRPRS_SZ := \"T\" ];
+
+-----------------------------
+D_CRRYNG_AMNT_LNS_ADVNCS := LNS_ADVNCS_E 
+[
+calc 
+D_CRRYNG_AMNT
+(ACCNTNG_CLSSFCTN, FV, GRSS_CRRYNG_AMNT_E_INTRST, ACCRD_INTRST, FV_CHNG_HDG_ACCNTNG,  ACCMLTD_IMPRMNT, CRRYNG_AMNT, CNSTNT_IS_CRRYNG_AMNT_DRVD)
+ as \"CRRYNG_AMNT\" 
+ role 
+ Measure
+ ];
+ 
+ --> 
+D_CRRYNG_AMNT_LNS_ADVNCS := LNS_ADVNCS_E 
+[calc 
+measure 
+CRRYNG_AMNT := D_CRRYNG_AMNT(ACCNTNG_CLSSFCTN, FV, GRSS_CRRYNG_AMNT_E_INTRST, ACCRD_INTRST, FV_CHNG_HDG_ACCNTNG,  ACCMLTD_IMPRMNT, CRRYNG_AMNT, CNSTNT_IS_CRRYNG_AMNT_DRVD)
+ ];
+*/
+
+
+/*
+D_CRRYNG_AMNT_LNS_ADVNCS := LNS_ADVNCS_E [calc measure CRRYNG_AMNT := D_CRRYNG_AMNT(ACCNTNG_CLSSFCTN, FV, GRSS_CRRYNG_AMNT_E_INTRST, ACCRD_INTRST, FV_CHNG_HDG_ACCNTNG,  ACCMLTD_IMPRMNT, CRRYNG_AMNT, CNSTNT_IS_CRRYNG_AMNT_DRVD) ];
+
+
+D_CRRYNG_AMNT_LNS_ADVNCS := LNS_ADVNCS_E 
+[
+calc 
+D_CRRYNG_AMNT
+(ACCNTNG_CLSSFCTN, FV, GRSS_CRRYNG_AMNT_E_INTRST, ACCRD_INTRST, FV_CHNG_HDG_ACCNTNG,  ACCMLTD_IMPRMNT, CRRYNG_AMNT, CNSTNT_IS_CRRYNG_AMNT_DRVD)
+ as \"CRRYNG_AMNT\" 
+ role 
+ Measure
+ ];
+ 
+ It seems that there is something wrong with the translation. 
+ The original expression creates a new Measure named CRRYNG_AMNT 
+ via the function D_CRRYNG_AMNT and its input parameters. 
+ 
+ In the changed expression the function call is replaced by a simple addition of variables 
+ (that also include a Boolean variable, i.e. CNSTNT_ID_CRRYNG_AMNT_DRVD). 
+ Consequently I think there is a problem with the translation.
+ 
+ */

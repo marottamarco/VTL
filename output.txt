@@ -1,0 +1,6 @@
+--------------------------------------
+Chiamo vtl2 Parser
+line 1:14 no viable alternative at input 'ALL:=(innerPRLMNRY_STTNG'
+Error:ID:D_ENTRPRS_SZ_CLCLTD_1_11Exception in thread "main" 
+java.lang.NullPointerException
+	at ConvertToVtl2.main(ConvertToVtl2.java:149)
