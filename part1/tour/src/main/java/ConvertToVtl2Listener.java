@@ -41,11 +41,7 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     	for( ParseTree item : childrens ){
     		if(item instanceof CalcExprContext){
     			CalcExprContext a = (CalcExprContext) item;
-    			if( null != a.children ){
-    				List<ParseTree> childrensCalcExprContext = a.children;
-    				for( ParseTree childrenCalcExprContext : childrensCalcExprContext){
-    				}
-    			}
+    			
     		}else if( item instanceof TerminalNodeImpl ){
     			TerminalNodeImpl a = (TerminalNodeImpl)item;
     			if( a.symbol.getText().equals(getTokenName(AS)) ){
@@ -53,21 +49,12 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     			}
     		}else if( item instanceof StringCContext ){
     			StringCContext a = (StringCContext)item;
-    			if( null != a.children ){
-    				List<ParseTree> childrensStringCContext = a.children;
-    				for( ParseTree childrenStringCContext : childrensStringCContext){
-    				}
-    			}
-    			
+    			   			
     			rewriter.insertAfter(ctx.getParent().start, String.format(" %s ", a.getText().replace("\"", "")));
     			rewriter.replace(a.start, "");
     		}else if( item instanceof RoleIDContext ){
     			RoleIDContext a = (RoleIDContext)item;
-    			if( null != a.children ){
-    				List<ParseTree> childrensStringCContext = a.children;
-    				for( ParseTree childrenStringCContext : childrensStringCContext){
-    				}
-    			}
+    			
     			rewriter.replace(a.start, "");
     		}
     	}
@@ -79,6 +66,37 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     	rewriter.insertBefore(ctx.start, String.format(" %s ", getV2TokenName(Vtl2Parser.ASSIGN)));
     	
     }
+    
+	private void iterateTree(List<ParseTree> childrens) {
+		Token stop=null;
+		
+		for (ParseTree item : childrens) {
+			if (item instanceof TerminalNodeImpl) {
+				TerminalNodeImpl a = (TerminalNodeImpl) item;
+				if (a.symbol.getText().equals(getTokenName(AS))) {
+					rewriter.replace(a.symbol, "to");
+				} else if (a.symbol.getText().equals("(") || a.symbol.getText().equals(")")) {
+					rewriter.replace(a.symbol, "");
+				}
+			} else if (item instanceof VtlParser.RenameArgListContext) {
+				stop=((VtlParser.RenameArgListContext) item).stop;
+				rewriter.replace(stop,
+						stop.getText().replace("\"", ""));
+				iterateTree(((VtlParser.RenameArgListContext) item).children);
+			} else if (item instanceof VtlParser.RenameArgContext) {
+				iterateTree(((VtlParser.RenameArgContext) item).children);
+			} else if (item instanceof VtlParser.RulesetArgContext) {
+				iterateTree(((VtlParser.RulesetArgContext) item).children);
+			}
+		}
+	}
+    
+    @Override public void enterRenameClause(@NotNull VtlParser.RenameClauseContext ctx) { 
+		System.out.println("ConvertToVtl2Listener.enterRenameClauseItem");
+		List<ParseTree> childrens = ctx.children;
+		iterateTree(childrens);
+		System.out.println("ConvertToVtl2Listener.exitRenameClauseItem");
+	}
 	
 	@Override public void exitCalcClauseItem(@NotNull VtlParser.CalcClauseItemContext ctx) {
 		System.out.println("ConvertToVtl2Listener.exitCalcClauseItem");
