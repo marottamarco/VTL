@@ -17,6 +17,7 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl;
 import org.apache.log4j.Logger;
 import org.sqtds.antlr4.vtl.VtlBaseListener;
 import org.sqtds.antlr4.vtl.VtlParser;
+import org.sqtds.antlr4.vtl.VtlParser.PutExprContext;
 import org.sqtds.antlr4.vtl2.Vtl2Parser;
 
 import static org.sqtds.antlr4.vtl.VtlParser.*;
@@ -67,37 +68,51 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     	
     }
     
-	private void iterateTree(List<ParseTree> childrens) {
-		Token stop=null;
-		
-		for (ParseTree item : childrens) {
-			if (item instanceof TerminalNodeImpl) {
-				TerminalNodeImpl a = (TerminalNodeImpl) item;
-				if (a.symbol.getText().equals(getTokenName(AS))) {
-					rewriter.replace(a.symbol, "to");
-				} else if (a.symbol.getText().equals("(") || a.symbol.getText().equals(")")) {
-					rewriter.replace(a.symbol, "");
-				}
-			} else if (item instanceof VtlParser.RenameArgListContext) {
-				stop=((VtlParser.RenameArgListContext) item).stop;
-				rewriter.replace(stop,
-						stop.getText().replace("\"", ""));
-				iterateTree(((VtlParser.RenameArgListContext) item).children);
-			} else if (item instanceof VtlParser.RenameArgContext) {
-				iterateTree(((VtlParser.RenameArgContext) item).children);
-			} else if (item instanceof VtlParser.RulesetArgContext) {
-				iterateTree(((VtlParser.RulesetArgContext) item).children);
-			}
-		}
-	}
-    
-    @Override public void enterRenameClause(@NotNull VtlParser.RenameClauseContext ctx) { 
+	@Override public void enterRenameClause(@NotNull VtlParser.RenameClauseContext ctx) { 
 		System.out.println("ConvertToVtl2Listener.enterRenameClauseItem");
 		List<ParseTree> childrens = ctx.children;
 		iterateTree(childrens);
 		System.out.println("ConvertToVtl2Listener.exitRenameClauseItem");
 	}
-	
+    
+    @Override
+    public void enterPutExpr(PutExprContext ctx) {
+    	Token stop=null;
+    	Token start=null;
+    	TerminalNodeImpl comma=null;
+    	
+    	System.out.println("ConvertToVtl2Listener.enterPutExpr");
+    	
+    	// remove assignment variable
+    	rewriter.replace(tokens.get(1), " ");
+    	// remove assignment op and surrounding spaces
+    	rewriter.replace(tokens.get(2), " ");
+    	rewriter.replace(tokens.get(3), " ");
+    	rewriter.replace(tokens.get(4), " ");
+
+    	rewriter.replace(ctx.getStart(), " ");
+    	    	
+    	for (ParseTree item : ctx.children) {
+			if (item instanceof TerminalNodeImpl) {
+				TerminalNodeImpl a = (TerminalNodeImpl) item;
+				if (a.symbol.getText().equals("put") || a.symbol.getText().equals("(") || a.symbol.getText().equals(")")) {
+					rewriter.replace(a.symbol, "");
+				}
+			} else if (item instanceof VtlParser.PutInputParametersContext) {
+				comma= (TerminalNodeImpl) ((VtlParser.PutInputParametersContext) item).children.get(1);
+				rewriter.replace(comma.symbol, "");
+				start=((VtlParser.PutInputParametersContext) item).start;
+				stop=((VtlParser.PutInputParametersContext) item).stop;
+				rewriter.insertAfter(start,
+		    			" <- ");
+				rewriter.replace(stop,
+		    			stop.getText().replace("\"", ""));
+			} 
+		}
+    	
+    	System.out.println("ConvertToVtl2Listener.exitPutExpr");
+	}
+
 	@Override public void exitCalcClauseItem(@NotNull VtlParser.CalcClauseItemContext ctx) {
 		System.out.println("ConvertToVtl2Listener.exitCalcClauseItem");
 		System.out.println("");
@@ -216,4 +231,28 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
         }
         return null;
     }
+    
+    private void iterateTree(List<ParseTree> childrens) {
+		Token stop=null;
+		
+		for (ParseTree item : childrens) {
+			if (item instanceof TerminalNodeImpl) {
+				TerminalNodeImpl a = (TerminalNodeImpl) item;
+				if (a.symbol.getText().equals(getTokenName(AS))) {
+					rewriter.replace(a.symbol, "to");
+				} else if (a.symbol.getText().equals("(") || a.symbol.getText().equals(")")) {
+					rewriter.replace(a.symbol, "");
+				}
+			} else if (item instanceof VtlParser.RenameArgListContext) {
+				stop=((VtlParser.RenameArgListContext) item).stop;
+				rewriter.replace(stop,
+						stop.getText().replace("\"", ""));
+				iterateTree(((VtlParser.RenameArgListContext) item).children);
+			} else if (item instanceof VtlParser.RenameArgContext) {
+				iterateTree(((VtlParser.RenameArgContext) item).children);
+			} else if (item instanceof VtlParser.RulesetArgContext) {
+				iterateTree(((VtlParser.RulesetArgContext) item).children);
+			}
+		}
+	}
 }
