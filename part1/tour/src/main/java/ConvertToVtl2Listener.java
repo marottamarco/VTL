@@ -176,16 +176,31 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     public void enterKeepClause(KeepClauseContext ctx) {
         // keep(a, b... -> keep a, b
         Token openBrk = findNextNotWhitespace(tokens, ctx.getStart().getTokenIndex() + 1);
+        Token currentToken = null;
+        
         if (openBrk != null && "(".equals(openBrk.getText())) {
             rewriter.replace(openBrk, " ");
             rewriter.replace(ctx.getStop(), " ");
         }
+        
+        //remove double quotes, as
+		for (int count = 1; count < tokens.size(); count++) {
+			if (null != tokens.get(count)) {
+				if (tokens.get(count).getText().equals("as")) {
+					rewriter.replace(tokens.get(count), ", ");
+				}
+				if (tokens.get(count).getText().startsWith("\"") || tokens.get(count).getText().endsWith("\"")) {
+					rewriter.replace(tokens.get(count), tokens.get(count).getText().replaceAll("^\"|\"$", ""));
+				}
+			}
+		}
 
-        // remove role xxx
+        // remove role
         for (int i = 0; ctx.setMemberListAlias() != null && i < ctx.setMemberListAlias().getChildCount(); ++i) {
             if (ctx.setMemberListAlias().getChild(i) instanceof TerminalNodeImpl) {
-                if (((TerminalNodeImpl) ctx.setMemberListAlias().getChild(i)).symbol.getType() == VtlParser.ROLE) {
-                    rewriter.delete(((TerminalNodeImpl) ctx.setMemberListAlias().getChild(i)).symbol);
+            	currentToken=((TerminalNodeImpl) ctx.setMemberListAlias().getChild(i)).symbol;
+                if ((currentToken.getType() == VtlParser.ROLE)) {
+                    rewriter.delete(currentToken);
                 }
             }
             if (ctx.setMemberListAlias().getChild(i) instanceof VtlParser.RoleIDContext) {
