@@ -8,11 +8,13 @@
  ***/
 
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.NotNull;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.antlr.v4.runtime.tree.TerminalNodeImpl;
 import org.apache.log4j.Logger;
 import org.sqtds.antlr4.vtl.VtlBaseListener;
@@ -22,6 +24,7 @@ import org.sqtds.antlr4.vtl2.Vtl2Parser;
 
 import static org.sqtds.antlr4.vtl.VtlParser.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ConvertToVtl2Listener extends VtlBaseListener {
@@ -29,7 +32,9 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     TokenStreamRewriter rewriter;
     
     private Logger logger = Logger.getLogger(ConvertToVtl2Listener.class);
-
+    
+    private String currentClause="";
+    
     public ConvertToVtl2Listener(TokenStream tokens) {
         this.tokens = tokens;
         rewriter = new TokenStreamRewriter(tokens);
@@ -247,6 +252,136 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
         return null;
     }
     
+    /**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void visitTerminal(@NotNull TerminalNode node) {
+		System.out.println(" >> visitTerminal");
+		TerminalNodeImpl nodeImpl = (TerminalNodeImpl) node;
+		
+		switch (this.currentClause) {
+		case "enterJoinAtom":
+			if (nodeImpl.symbol.getText().equals("[") || nodeImpl.symbol.getText().equals("]")) {
+				rewriter.replace(nodeImpl.symbol, "");
+			}
+			break;
+		case "enterJoinClause":
+			if (nodeImpl.symbol.getText().equals("left")){
+				rewriter.replace(nodeImpl.symbol, "left_join (");
+			}
+			if (nodeImpl.symbol.getText().equals("inner")){
+				rewriter.replace(nodeImpl.symbol, "inner_join (");
+			}
+			if (nodeImpl.symbol.getText().equals("]")){
+				rewriter.replace(nodeImpl.symbol, "");
+			}
+			if (nodeImpl.symbol.getText().equals("{")){
+				rewriter.replace(nodeImpl.symbol, "");
+			}
+			if (nodeImpl.symbol.getText().contains("\"")){
+				rewriter.replace(nodeImpl.symbol, nodeImpl.symbol.getText().replaceAll("\"", ""));
+			}
+			break;
+		case "enterJoinKeepClause":
+			if (nodeImpl.symbol.getText().equals("(") || nodeImpl.symbol.getText().equals(")")) {
+				rewriter.replace(nodeImpl.symbol, "");
+			}
+			if (nodeImpl.symbol.getText().equals("}")){
+				rewriter.replace(nodeImpl.symbol, "");
+			}
+			break;
+		}
+				
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterJoinKeepClause(@NotNull VtlParser.JoinKeepClauseContext ctx) { 
+		System.out.println(" >> enterJoinKeepClause");
+		this.currentClause="enterJoinKeepClause";
+		for (ParseTree item : ctx.children) {
+		List<Token> tokens=getFlatTokenList(item);
+		for (Token currentToken : tokens) {
+			rewriter.replace(currentToken, currentToken.getText().replace("\"", ""));
+		}}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override
+	public void enterJoinClause(@NotNull VtlParser.JoinClauseContext ctx) {
+		System.out.println(" >> enterJoinClause");
+		this.currentClause = "enterJoinClause";
+		VtlParser.ExprOrExprContext leftOnClause = null;
+		String s = "";
+
+		ParseTree itemCurrent = null;
+		for (ParseTree item : ctx.children) {
+			if ((itemCurrent instanceof TerminalNodeImpl)) {
+				TerminalNodeImpl a = (TerminalNodeImpl) itemCurrent;
+				if (a.symbol.getText().equals("on")) {
+					if (item instanceof VtlParser.ExprOrExprContext) {
+						leftOnClause = (VtlParser.ExprOrExprContext) item;
+						s = leftOnClause.getStop().getText();
+						List<Token> tokens=getFlatTokenList(item);
+						for (Token currentToken : tokens) {
+							rewriter.replace(currentToken, "");
+						}
+						
+					}
+					rewriter.replace(a.symbol, "using " + s);
+				}
+			}
+			itemCurrent = item;
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterJoinAtom(@NotNull VtlParser.JoinAtomContext ctx) { 
+		System.out.println(" >> enterJoinAtom");
+		this.currentClause="enterJoinAtom";
+		
+		rewriter.insertAfter(((VtlParser.JoinAtomContext) ctx.getPayload()).getStop(),")");
+	}
+	
+	private static List<Token> getFlatTokenList(ParseTree tree) {
+	    List<Token> tokens = new ArrayList<Token>();
+	    inOrderTraversal(tokens, tree);
+	    return tokens;
+	}
+    
+	private static void inOrderTraversal(List<Token> tokens, ParseTree parent) {
+
+	    // Iterate over all child nodes of `parent`.
+	    for (int i = 0; i < parent.getChildCount(); i++) {
+
+	        // Get the i-th child node of `parent`.
+	        ParseTree child = parent.getChild(i);
+
+	        if (child instanceof TerminalNode) {
+	            // We found a leaf/terminal, add its Token to our list.
+	            TerminalNode node = (TerminalNode) child;
+	            tokens.add(node.getSymbol());
+	        }
+	        else {
+	            // No leaf/terminal node, recursively call this method.
+	            inOrderTraversal(tokens, child);
+	        }
+	    }
+	}
+	
     private void iterateTree(List<ParseTree> childrens) {
 		Token stop=null;
 		
@@ -257,8 +392,8 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 					rewriter.replace(a.symbol, "to");
 				} else if (a.symbol.getText().equals("(") || a.symbol.getText().equals(")")) {
 					rewriter.replace(a.symbol, "");
-				}
-			} else if (item instanceof VtlParser.RenameArgListContext) {
+				}}
+			else if (item instanceof VtlParser.RenameArgListContext) {
 				stop=((VtlParser.RenameArgListContext) item).stop;
 				rewriter.replace(stop,
 						stop.getText().replace("\"", ""));
@@ -270,4 +405,5 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 			}
 		}
 	}
+    
 }
