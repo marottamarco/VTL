@@ -356,6 +356,17 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 		rewriter.insertAfter(((VtlParser.JoinAtomContext) ctx.getPayload()).getStop(),")");
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterProcedureCall(@NotNull VtlParser.ProcedureCallContext ctx) {
+		System.out.println(" >> enterProcedureCall");
+		rewriter.replace(ctx.start, "");
+	}
+	
+	
 	private static List<Token> getFlatTokenList(ParseTree tree) {
 	    List<Token> tokens = new ArrayList<Token>();
 	    inOrderTraversal(tokens, tree);
