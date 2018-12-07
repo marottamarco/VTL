@@ -262,6 +262,9 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 		TerminalNodeImpl nodeImpl = (TerminalNodeImpl) node;
 		
 		switch (this.currentClause) {
+		case "enterFunctionCall":
+			rewriter.replace(nodeImpl.symbol, nodeImpl.symbol.getText().replaceAll("\"", ""));
+			break;
 		case "enterJoinAtom":
 			if (nodeImpl.symbol.getText().equals("[") || nodeImpl.symbol.getText().equals("]")) {
 				rewriter.replace(nodeImpl.symbol, "");
@@ -361,11 +364,42 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override
+	public void enterFunctionCall(@NotNull VtlParser.FunctionCallContext ctx) {
+		System.out.println(" >> enterFunctionCall");
+		this.currentClause="enterFunctionCall";
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override
+	public void exitFunctionCall(@NotNull VtlParser.FunctionCallContext ctx) {
+		System.out.println(" >> exitFunctionCall");
+		this.currentClause="";
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterProcedureCall(@NotNull VtlParser.ProcedureCallContext ctx) {
 		System.out.println(" >> enterProcedureCall");
 		rewriter.replace(ctx.start, "");
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterStringC(@NotNull VtlParser.StringCContext ctx) {
+		System.out.println(" >> enterStringC");
+		
+	}
 	
 	private static List<Token> getFlatTokenList(ParseTree tree) {
 	    List<Token> tokens = new ArrayList<Token>();
