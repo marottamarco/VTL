@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import org.antlr.v4.runtime.misc.NotNull;
+import org.antlr.v4.runtime.tree.ErrorNodeImpl;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.antlr.v4.runtime.tree.TerminalNodeImpl;
@@ -160,11 +161,12 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 
     @Override
     public void enterSetMemberList(VtlParser.SetMemberListContext ctx) {
+    	
         // in () -> in {}
-        // elimina gli eventuali spazi andando a ritroso finchÃ© non trova il token "IN"
+        // elimina gli eventuali spazi andando a ritroso finchè non trova il token "IN"
         Token in = findPreviousNotWhitespace(tokens, ctx.getStart().getTokenIndex() - 1, "(");
         if (in != null && VtlParser.IN == in.getType() || VtlParser.NOT_IN == in.getType()) {
-            // elimina gli eventuali spazi andando in avanti finchÃ© non trova la parentesi
+            // elimina gli eventuali spazi andando in avanti finchè non trova la parentesi
             Token openBrk = findNextNotWhitespace(tokens, in.getTokenIndex() + 1);
             if ("(".equals(openBrk.getText())) {
                 rewriter.replace(openBrk, "{");
@@ -398,6 +400,59 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 	 */
 	@Override public void enterStringC(@NotNull VtlParser.StringCContext ctx) {
 		System.out.println(" >> enterStringC");
+		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSumExprAtom(@NotNull VtlParser.SumExprAtomContext ctx) {
+		System.out.println(" >> enterSumExprAtom");
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterExprMember(@NotNull VtlParser.ExprMemberContext ctx) { 
+		System.out.println(" >> enterExprMember");
+		boolean checkAggregateFunction=false;
+		
+		for (ParseTree item : ctx.children) {
+			if ((item instanceof VtlParser.SumExprAtomContext) || (item instanceof VtlParser.MaxAtomContext)) {
+				checkAggregateFunction=true;
+				if (item instanceof VtlParser.SumExprAtomContext) {
+					rewriter.replace(((VtlParser.SumExprAtomContext) item).stop, "");
+				}else if (item instanceof VtlParser.MaxAtomContext) {
+					rewriter.replace(((VtlParser.MaxAtomContext) item).stop, "");
+				}
+			}
+			if ((checkAggregateFunction==true) && (item instanceof ErrorNodeImpl)) {
+				ErrorNodeImpl a = (ErrorNodeImpl) item;
+				if (a.symbol.getText().equals("(")) {rewriter.replace(a.symbol, "");}
+			}
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDropClause(@NotNull VtlParser.DropClauseContext ctx) {
+		System.out.println(" >> enterDropClause");
+
+		for (ParseTree item : ctx.children) {
+			if (item instanceof TerminalNodeImpl) {
+				TerminalNodeImpl a = (TerminalNodeImpl) item;
+				if (a.symbol.getText().equals("(")||a.symbol.getText().equals(")")) {
+					rewriter.replace(a.symbol, " ");
+				}
+			}
+		}
 		
 	}
 	
