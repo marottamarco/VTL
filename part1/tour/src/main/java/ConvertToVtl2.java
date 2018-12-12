@@ -115,25 +115,31 @@ public class ConvertToVtl2 {
 		*/
         // legge il file .json contenente tutte le transformations estratte dal BIRD database (ignora conversioni di tipo)
         ObjectMapper objectMapper = new ObjectMapper();
-        List<Translation> listTrans = objectMapper.readValue(new File("D:\\workspace-VTL\\antlr-example\\transformations.json"), new TypeReference<List<Translation>>() {});
+        List<Translation> listTrans = objectMapper.readValue(new File("E:\\Data\\Temp\\transformations.json"), new TypeReference<List<Translation>>() {});
+        HashMap<String, String> customTransformation = new HashMap<>();
         HashMap<String, String> errors = new HashMap<>();
         HashMap<String, List<String>> success = new HashMap<String, List<String>>();
-
+        
+        fillCustomTransformation(customTransformation);
+        
         for (Translation translation : listTrans) {
         	logger.info("--------------------------------------");
         	System.out.println("--------------------------------------");
             convertedExpr = null;
             parsedV2Expr = null;
-
-            // converte
-            convertedExpr = convertExpressionToVTL2(translation.getTransformationId(), translation.getExpression(), false);
-            System.out.println("convertedExpr.converted:"+convertedExpr.converted);
             
+            if(customTransformation.containsKey(translation.getTransformationId())) {
+            	convertedExpr=new ConversionResult(translation.getTransformationId(), translation.getExpression(), "", true, null);
+            }
+            else {
+            // converte
+            convertedExpr = convertExpressionToVTL2(translation.getTransformationId(), translation.getExpression(), false);}
+            System.out.println("convertedExpr.converted:"+convertedExpr.converted);
             System.out.println("Chiamo vtl2 Parser");
             // verifica se il parser VTL2 è in grado di gestire correttamente l'espressione
-            //parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), convertedExpr.converted, false);
+            parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), convertedExpr.converted, false);
             
-            parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), translation.getExpression(), false);
+            //parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), translation.getExpression(), false);
             
 
             //TODO: gestire output ed errori in modo appropriato
@@ -158,20 +164,31 @@ public class ConvertToVtl2 {
         System.out.println(String.format("Errors %d/%d", errors.size(), listTrans.size()));
         System.out.println(String.format("Successes %d/%d", success.size(), listTrans.size()));
         
-        Iterator<String> keys = success.keySet().iterator();
+        Iterator<String> keys = errors.keySet().iterator();
         while( keys.hasNext() ){
         	logger.info("++++++++++++++");
         	String key = keys.next();
         	logger.info("ID:"+key);
-        	List<String> values = success.get(key);
-        	for( String item : values ){
+        	String values = errors.get(key);
+        	/*for( String item : values ){
         		logger.info(item);
-        	}
-        	
+        	}*/
+        	logger.info(values);
         }
         
         
     }
+
+	private static void fillCustomTransformation(HashMap<String, String> customTransformation) {
+		customTransformation.put("P_EXTRCTN_RGSTRY_TBL_SCRTS_1_0", "SHR_CPTL_INVST_CNTRPRTY_FINREP := RGSTRY_TBL_SCRTS [filter(TYP_INSTRMNT in TYP_INSTRMNT_11)];");
+        customTransformation.put("G_SHSG_GNRL_1_2", "OWND_SCRTS_E := OWND_SCRTS_E [filter(OBSRVD_AGNT_INTRNL_ID in GRP_SHSG)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_11", "EQTY_INSTRMNTS_GRP_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(OBSRVD_AGNT_INTRNL_ID not in CNSLDTD_ENTTS_PRDTNL_SUB_LST)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_4", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(ISSR_ID in JNT_VNTRS_SBSDRS_ENTTS_FINREP_LST)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_3", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(ISSR_ID not in CNSTNT_INSTTTN_ID)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_9", "EQTY_INSTRMNTS_GRP_INDVDL_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(OBSRVD_AGNT_INTRNL_ID in CNSLDTD_ENTTS_PRDTNL_SUB_LST)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_1", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(ISSR_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
+        customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_0", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_DBTRS_FINREP [filter(OBSRVD_AGNT_INTRNL_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
+	}
 
     /**
      * Converte una expression (di una transformation) da sintassi VTL1 in una equivalente in VTL2
@@ -196,7 +213,7 @@ public class ConvertToVtl2 {
         walker.walk(extractor, tree); // initiate walk of tree with listener
         
         // print back ALTERED stream
-        String output = extractor.rewriter.getText().replaceAll("  ", " ").replaceAll("  ", " ");
+        String output = extractor.rewriter.getText().replaceAll("  ", " ");
         RecognitionException excp = ((VtlParser.StartContext) tree).exception;
 
         return new ConversionResult(id, expression, output, excp == null, excp != null ? excp.getMessage() : null);
