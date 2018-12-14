@@ -8,7 +8,6 @@
  ***/
 
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
@@ -309,10 +308,33 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 	@Override public void enterJoinKeepClause(@NotNull VtlParser.JoinKeepClauseContext ctx) { 
 		System.out.println(" >> enterJoinKeepClause");
 		this.currentClause="enterJoinKeepClause";
+		int ctxLength=(null!=ctx.setMemberListAlias())?ctx.setMemberListAlias().getChildCount():0;
+		Object currentTk=null;
+		TerminalNodeImpl currentNodeImpl=null;
+		
+		for (int i = 0; i < ctxLength; i++) {
+			currentTk=ctx.setMemberListAlias().getChild(i);
+			if (currentTk instanceof VtlParser.RoleIDContext) {
+				rewriter.delete(((VtlParser.RoleIDContext) currentTk).start);
+			}
+			else if (currentTk instanceof TerminalNodeImpl) {
+				currentNodeImpl= (TerminalNodeImpl) currentTk;
+				if (currentNodeImpl.symbol.getType()==VtlParser.AS || currentNodeImpl.symbol.getType()==VtlParser.ROLE) {
+					rewriter.delete(currentNodeImpl.symbol);
+					if (ctx.setMemberListAlias().getChild(i+1) instanceof VtlParser.StringCContext)
+                    {
+						currentTk=ctx.setMemberListAlias().getChild(i+1);
+						rewriter.delete(((VtlParser.StringCContext) currentTk).start);
+                    }
+					
+				}
+			}
+		}
+		
 		for (ParseTree item : ctx.children) {
 		List<Token> tokens=getFlatTokenList(item);
 		for (Token currentToken : tokens) {
-			rewriter.replace(currentToken, currentToken.getText().replace("\"", ""));
+			//rewriter.replace(currentToken, currentToken.getText().replace("\"", ""));
 		}}
 	}
 	
@@ -430,7 +452,7 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 					rewriter.replace(((VtlParser.MaxAtomContext) item).stop, "");
 				}
 			}
-			if ((checkAggregateFunction==true) && (item instanceof ErrorNodeImpl)) {
+			if ((checkAggregateFunction) && (item instanceof ErrorNodeImpl)) {
 				ErrorNodeImpl a = (ErrorNodeImpl) item;
 				if (a.symbol.getText().equals("(")) {rewriter.replace(a.symbol, "");}
 			}

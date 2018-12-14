@@ -136,7 +136,7 @@ public class ConvertToVtl2 {
             convertedExpr = convertExpressionToVTL2(translation.getTransformationId(), translation.getExpression(), false);}
             System.out.println("convertedExpr.converted:"+convertedExpr.converted);
             System.out.println("Chiamo vtl2 Parser");
-            // verifica se il parser VTL2 Ã¨ in grado di gestire correttamente l'espressione
+            // verifica se il parser VTL2 è in grado di gestire correttamente l'espressione
             parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), convertedExpr.converted, false);
             
             //parsedV2Expr = parseVTL2Expression(translation.getTransformationId(), translation.getExpression(), false);
@@ -188,6 +188,7 @@ public class ConvertToVtl2 {
         customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_9", "EQTY_INSTRMNTS_GRP_INDVDL_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(OBSRVD_AGNT_INTRNL_ID in CNSLDTD_ENTTS_PRDTNL_SUB_LST)];");
         customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_1", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(ISSR_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
         customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_0", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_DBTRS_FINREP [filter(OBSRVD_AGNT_INTRNL_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
+        customTransformation.put("G_IS_CMPNNT_LGL_ENTTY_1_3", "CNTRPRTS_NT_CMPNNTS := full_join (ALL_CNTRPRTS, CNTRPRTY_CMPNNTS using CNTRPRTY_ID);");
 	}
 
     /**
