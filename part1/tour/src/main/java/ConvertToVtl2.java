@@ -147,8 +147,9 @@ public class ConvertToVtl2 {
             	logger.info(String.format("ORIGINAL : \n%s\n\nTRANSLATED : \n%s\n\nAST V2 (no whitespaces) --->\n%s"
                         , translation.getExpression(), convertedExpr.converted, parsedV2Expr.parsed));
             	List<String> valori = new ArrayList<String>();
+            	valori.add("TRANSFORMATION_SCHEME_ID:"+translation.getTransformationId().replace(translation.getTransformationId().substring(translation.getTransformationId().lastIndexOf("_")),""));
             	valori.add("ORIGINAL:"+translation.getExpression());
-            	valori.add("TRANSLATED :"+convertedExpr.converted);
+            	valori.add("TRANSLATED:"+convertedExpr.converted);
             	success.put(translation.getTransformationId(), valori);
             } else {
                 errors.put(translation.getTransformationId(), translation.getExpression());
@@ -175,6 +176,13 @@ public class ConvertToVtl2 {
         	}*/
         	logger.info(values);
         }
+        
+        logger.info("/n++++++++++++++ CSV ++++++++++++++/n");
+        
+		for (HashMap.Entry<String, List<String>> entry : success.entrySet()) {
+			logger.info(String.format("%s;%s;%s;%s", entry.getKey()+"@", entry.getValue().get(0).replace("TRANSFORMATION_SCHEME_ID:", "")+"@", entry.getValue().get(1).replace("ORIGINAL:", "").replace("\n", "")+"@",
+					entry.getValue().get(2).replace("TRANSLATED:", "")));
+		}
         
         
     }
