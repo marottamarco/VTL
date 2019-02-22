@@ -25,6 +25,7 @@ import org.sqtds.antlr4.vtl2.Vtl2Parser;
 import static org.sqtds.antlr4.vtl.VtlParser.*;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class ConvertToVtl2Listener extends VtlBaseListener {
@@ -273,10 +274,10 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 			break;
 		case "enterJoinClause":
 			if (nodeImpl.symbol.getText().equals("left")){
-				rewriter.replace(nodeImpl.symbol, "left_join (");
+				rewriter.replace(nodeImpl.symbol, "");
 			}
 			if (nodeImpl.symbol.getText().equals("inner")){
-				rewriter.replace(nodeImpl.symbol, "inner_join (");
+				rewriter.replace(nodeImpl.symbol, "");
 			}
 			if (nodeImpl.symbol.getText().equals("]")){
 				rewriter.replace(nodeImpl.symbol, "");
@@ -368,6 +369,44 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 				}
 			}
 			itemCurrent = item;
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterJoinExpr(@NotNull VtlParser.JoinExprContext ctx) { 
+		System.out.println(" >> enterJoinExpr");
+		this.currentClause="enterJoinExpr";
+		TerminalNodeImpl a=null;
+		
+		for (ParseTree item : ctx.children) {
+			if (item instanceof TerminalNodeImpl) {
+				
+				 if (((TerminalNodeImpl) item).symbol.getText().equals("["));
+				 {
+					 a= (TerminalNodeImpl) item;
+				 }
+				
+			}
+			if (a!=null && item instanceof VtlParser.JoinClauseContext) {
+				
+				for (ParseTree i : ((VtlParser.JoinClauseContext) item).children) {
+					if (i instanceof TerminalNodeImpl) {
+					 if (((TerminalNodeImpl) i).symbol.getText().equals("inner"))
+					 {
+						 rewriter.replace(a.symbol, "inner_join( " );
+					 }
+					 else if (((TerminalNodeImpl) i).symbol.getText().equals("left")) {
+						 rewriter.replace(a.symbol, "left_join( " );
+					}}
+					else if(i instanceof VtlParser.DatasetAliasContext) {
+						rewriter.replace(a.symbol, "inner_join( " );
+					}
+				}
+			}
 		}
 	}
 	
