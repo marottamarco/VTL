@@ -125,8 +125,17 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 	}
     
     @Override public void enterElseIfExpr(@NotNull VtlParser.ElseIfExprContext ctx) {
-    	rewriter.replace(ctx.start, "else if");
+    	//rewriter.replace(ctx.start, "else if");
     }
+    
+    /**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterConstant(@NotNull VtlParser.ConstantContext ctx) {
+		System.out.println("");
+	}
     
     @Override public void exitElseIfExpr(@NotNull VtlParser.ElseIfExprContext ctx) {
     	logger.info("Entrato:"+ctx.ELSEIF().getText());
@@ -262,6 +271,10 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 	@Override public void visitTerminal(@NotNull TerminalNode node) {
 		System.out.println(" >> visitTerminal");
 		TerminalNodeImpl nodeImpl = (TerminalNodeImpl) node;
+		
+		if (nodeImpl.symbol.getText().equals("elseif")) {
+			rewriter.replace(nodeImpl.symbol, "else if");
+		}
 		
 		switch (this.currentClause) {
 		case "enterFunctionCall":

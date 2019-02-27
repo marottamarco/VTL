@@ -73,6 +73,7 @@ public class ConvertToVtl2 {
     public static void main(String[] args) throws Exception {
         ConversionResult convertedExpr = null;
         ParseResult parsedV2Expr = null;
+        boolean test=false;
 
         // singola espressione di test da convertire
         String expression;
@@ -115,7 +116,7 @@ public class ConvertToVtl2 {
 		*/
         // legge il file .json contenente tutte le transformations estratte dal BIRD database (ignora conversioni di tipo)
         ObjectMapper objectMapper = new ObjectMapper();
-        List<Translation> listTrans = objectMapper.readValue(new File("E:\\Data\\Temp\\transformations.json"), new TypeReference<List<Translation>>() {});
+        List<Translation> listTrans = objectMapper.readValue(new File("E:\\Data\\Temp\\transformations2.json"), new TypeReference<List<Translation>>() {});
         HashMap<String, String> customTransformation = new HashMap<>();
         HashMap<String, String> errors = new HashMap<>();
         HashMap<String, List<String>> success = new HashMap<String, List<String>>();
@@ -128,12 +129,19 @@ public class ConvertToVtl2 {
             convertedExpr = null;
             parsedV2Expr = null;
             
-            if(customTransformation.containsKey(translation.getTransformationId())) {
-            	convertedExpr=new ConversionResult(translation.getTransformationId(), translation.getExpression(), "", true, null);
-            }
-            else {
-            // converte
-            convertedExpr = convertExpressionToVTL2(translation.getTransformationId(), translation.getExpression(), false);}
+			if (test == true) {
+				convertedExpr = new ConversionResult(translation.getTransformationId(), translation.getExpression(),
+						translation.getExpression(), true, null);
+			} else {
+				if (customTransformation.containsKey(translation.getTransformationId())) {
+					convertedExpr = new ConversionResult(translation.getTransformationId(), translation.getExpression(),
+							"", true, null);
+				} else {
+					// converte
+					convertedExpr = convertExpressionToVTL2(translation.getTransformationId(),
+							translation.getExpression(), false);
+				}
+			}
             System.out.println("convertedExpr.converted:"+convertedExpr.converted);
             System.out.println("Chiamo vtl2 Parser");
             // verifica se il parser VTL2 è in grado di gestire correttamente l'espressione
@@ -147,8 +155,8 @@ public class ConvertToVtl2 {
             	logger.info(String.format("ORIGINAL : \n%s\n\nTRANSLATED : \n%s\n\nAST V2 (no whitespaces) --->\n%s"
                         , translation.getExpression(), convertedExpr.converted, parsedV2Expr.parsed));
             	List<String> valori = new ArrayList<String>();
-            	valori.add("TRANSFORMATION_SCHEME_ID:"+translation.getTransformationId().replace(translation.getTransformationId().substring(translation.getTransformationId().lastIndexOf("_")),""));
-            	valori.add("ORIGINAL:"+translation.getExpression());
+            	valori.add("TRANSFORMATION_SCHEME_ID:"+translation.getTransformationId().substring(0,translation.getTransformationId().lastIndexOf("_")));
+            	valori.add("ORIGINAL:"+translation.getExpression().replaceAll("[\r\n]",""));
             	valori.add("TRANSLATED:"+convertedExpr.converted);
             	success.put(translation.getTransformationId(), valori);
             } else {
@@ -197,6 +205,26 @@ public class ConvertToVtl2 {
         customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_1", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_GRP_FINREP [filter(ISSR_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
         customTransformation.put("G_F_40_02_REF_UNFLDD_FINREP_1_0", "EQTY_INSTRMNTS_GRP_FINREP := EQTY_INSTRMNTS_DBTRS_FINREP [filter(OBSRVD_AGNT_INTRNL_ID in CNSLDTD_ENTTS_ACCNTNG_LST)];");
         customTransformation.put("G_IS_CMPNNT_LGL_ENTTY_1_3", "CNTRPRTS_NT_CMPNNTS := full_join (ALL_CNTRPRTS, CNTRPRTY_CMPNNTS using CNTRPRTY_ID);");
+        customTransformation.put("P_PRSPCTV_IDS_1_0", "PRDNTL_NT_FLL_PRPTNL_CNSLDT_PRSPCTV_IDS := PRSPCTV_INF [filter(CNTRPRTY_ID in CNSLDTD_ENTTS_ACCNTNG_LST and ACCNTNG_FRMWRK = CNSTNT_ACCNTNG_FRMWRK_CNS)];");
+        customTransformation.put("G_SHSG4_GROUP_REF_1_5", "SHSG4_GROUP_REF := SHSG4_GROUP_REF [rename GRP_ID to CRDTR_GRP_ID , GRP_TYP to GROUP_ID_TYPE, LEI to LEI_CRDTR_GRP, GROUP_TYPE to TYP_CRDTR_GRP, GROUP_SECTOR to INSTTTNL_SCTR_CRDTR_GRP, NM_ENTTY to NM_CRDTR_GRP];");
+        customTransformation.put("G_SCRTY_MSTR_DT_1_7", "CNTRPRTS_E_SUB := CNTRPRTS_E [filter (PRSPCTV_ID = INSTTTN_ID)] [keep OBSRVD_AGNT_ID, CNTRPRTY_ID, PD];");
+        customTransformation.put("G_NT_RL_ET_PRTCTN_RCVD_AC_1_0", "PRTCTNS_PRTCTN_PRVDRS_SUB := PRTCTNS_PRTCTN_PRVDRS_E [filter (IS_PRMRY_PRTCTN_PRVDR = T)] [keep PRTCTN_ID, CNTRPRTY_ID]; PRTCTNS_PRTCTN_PRVDRS_SUB := PRTCTNS_PRTCTN_PRVDRS_SUB [rename CNTRPRTY_ID to PRTCTN_PRVD_ID]");
+        customTransformation.put("G_RL_ESTT_PRTCTN_RCVD_AC_1_1", "PRTCTNS_PRTCTN_PRVDRS_SUB := PRTCTNS_PRTCTN_PRVDRS_E [filter (IS_PRMRY_PRTCTN_PRVDR = T)] [keep PRTCTN_ID, CNTRPRTY_ID]; PRTCTNS_PRTCTN_PRVDRS_SUB := PRTCTNS_PRTCTN_PRVDRS_SUB [rename CNTRPRTY_ID to PRTCTN_PRVD_ID];");
+        customTransformation.put("G_ANCRDT_ENTTY_RSK_C_1_4", "ANCRDT_ENTTY_RSK_C := inner_join (ANCRDT_ENTTY_RSK_C as A, LEI_CDS [rename CNTRPRTY_ID to OBSRVD_AGNT_ID] as B  using OBSRVD_AGNT_ID keep A.ALL_VARIABLES, B.LEI); ANCRDT_ENTTY_RSK_C := ANCRDT_ENTTY_RSK_C [rename LEI to OBSRVD_AGNT_CD];");
+        customTransformation.put("P_DRVTVS_FINREP_1_4", "DRVTVS_TRS := inner_join (DRVTVS_TRS as A, DRVTVS_TRS_FV as B using INSTRMNT_ID keep A.ALL_VARIABLES, B.FV);");
+        customTransformation.put("P_CNTRPRTS_E_1_2", "CNTRPRTS_E := inner_join (CNTRPRTS_E as A, EXTRNL_CRDT_ASSSSMNT as B using EXTRNL_CRDT_ASSSSMNT keep A.ALL_VARIABLES, B.CRDT_QLTY_STP, B.ECAI_ECA, B.IS_SHRT_TRM_CRDT_ASSSSMNT); CNTRPRTS_E := CNTRPRTS_E [rename CRDT_QLTY_STP to  CRDT_QLTY_STP_CNTRPRTY, ECAI_ECA to ECAI_ECA_CNTRPRTY, IS_SHRT_TRM_CRDT_ASSSSMNT to IS_SHRT_TRM_CRDT_ASSSSMNT_CNTRPRTY];");
+        customTransformation.put("G_PRP_LNS_1_2", "LNS_AC := inner_join (LNS_AC as A, LEI_CDS [rename CNTRPRTY_ID to OBSRVD_AGNT_ID] as B using OBSRVD_AGNT_ID keep A.ALL_VARIABLES, B.LEI); LNS_AC := LNS_AC [rename LEI to OBSRVD_AGNT_CD];");
+        customTransformation.put("P_OWND_SCRTS_E_1_2", "OWND_SCRTS_E := inner_join (OWND_SCRTS as A, D_CRRYNG_AMNT_SCRTS as B using SCRTY_ID keep A.ALL_VARIABLES, B.CRRYNG_AMNT);");
+        customTransformation.put("G_ANCRDT_ENTTY_DFLT_C_1_7", "ANCRDT_ENTTY_DFLT_C := inner_join (ANCRDT_ENTTY_DFLT_C as A, LEI_CDS [rename CNTRPRTY_ID to OBSRVD_AGNT_ID] as B using OBSRVD_AGNT_ID keep A.ALL_VARIABLES, B.LEI); ANCRDT_ENTTY_DFLT_C := ANCRDT_ENTTY_DFLT_C [rename LEI to OBSRVD_AGNT_CD ];");
+        customTransformation.put("P_DRVTVS_FINREP_1_10", "DRVTVS_MSTR_NTTNG_CRRNG_AMNT := left_join (DRVTVS_MSTR_NTTNG_CRRNG_AMNT as A, MSTR_NTTNG_AGRMNT_FINREP [rename MSTR_NTTNG_AGRMNT_ID to NTTNG_AGRMNT_ID] as B using NTTNG_AGRMNT_ID keep A.ALL_VARIABLES, B.CRRYNG_AMNT);");
+        customTransformation.put("P_PRTCTNS_RCVD_FINREP_1_6", "PRTCTNS_RCVD_FINREP := inner_join (PRTCTNS_RCVD_FINREP as A, PRTCTNS_RCVD_FINREP_SUB as B using PRTCTN_ID keep A.PRTCTN_ID, A.FNNCL_GRNT_CNSDRD_MX_AMNT, A.TYP_PRTCTN, B.IS_RSTNTL_CLLTRL_FNNCL_GRNT, B.IS_CMMRCL_CLLTRL_FNNCL_GRNT);");
+        customTransformation.put("P_LNS_ADVNCS_E_1_2", "LNS_ADVNCS_E := inner_join (LNS_ADVNCS_E as A, D_CRRYNG_AMNT_LNS_ADVNCS as B using INSTRMNT_UNQ_ID  keep A.ALL_VARIABLES, B.CRRYNG_AMNT);");
+        customTransformation.put("P_CMMTMNTS_GVN_CSTMRS_FINREP_1_0", "CMMTMNTS_GVN_CSTMRS_FINREP := inner_join (CMMTMNTS_GVN_FINREP as A, CMMTMNTS_GVN_CSTMRS_RLTNSHP_E as B using CMMTMNT_UNQ_ID keep A.ALL_VARIABLES, B.CNTPRTY_ID);");
+        customTransformation.put("D_CNTRY_FINREP_1_0", "/* map: (Institutional sector, International organisation) &rArr; Institutional sector*/ define operator D_CNTRY_FINREP(CNTRY IDENTIFIER, INTRNTNL_ORGNSTN_CD IDENTIFIER)  returns string is if (INTRNTNL_ORGNSTN_CD in MLTLTRL_DVLPMNT_BNKS_FINREP or INTRNTNL_TRGNSTN_CD in INTRNTNL_ORGNSTNS_FINREP) then \\\"_X\\\" else CNTRY  end operator");
+        customTransformation.put("D_IS_CSH_DBT_INSTRMNT_ISSD_1_0", "define operator D_IS_CSH_DBT_INSTRMNT_ISSD(TYP_PRTCTN IDENTIFIER, RPRTNG_AGNT IDENTIFIER, GRP_INFRMTN IDENTIFIER)  returns string is if (TYP_PRTCTN in {\\\"12\\\", \\\"15\\\"} and RPRTNG_AGNT in GRP_INFRMTN) then \\\"T\\\" else \\\"F\\\"  end operator");
+        customTransformation.put("D_TYP_INSTRMNT_CMMTMNTS_FINREP_1_0", "define operator D_TYP_INSTRMNT_CMMTMNTS_FINREP(TYP_CMMTMNT IDENTIFIER)  returns string is if (TYP_CMMTMNT in LN_CMMTMNTS_GVN) then \\\"910\\\" else if (TYP_CMMTMNT in OTHR_CMMTMNTS_GVN) then \\\"930\\\" else \\\"0\\\"  end operator");
+        customTransformation.put("G_TYP_INSTRMNT_AC_1_0", "/*map: (Type of instrument, Is revolving loan, Is credit line other than revolving credit) &rArr; Type of instrument (AnaCredit)*/ define operator G_TYP_INSTRMNT_AC (TYP_INSTRMNT IDENTIFIER, IS_RVLVNG_LN IDENTIFIER, IS_CRDT_LN_OTHR_RV_CRDT IDENTIFIER, INSTTTNL_SCTR IDENTIFIER)     returns string is /*Current accounts*/if (TYP_INSTRMNT in {\\\"260\\\"}) then    /*Current accounts with MFIs are considered Deposits in AnaCredit*/if (INSTTTNL_SCTR in Sectors03) then \\\"1000\\\"    /*otherwise such current accounts are considered as Overdrafts*/else \\\"20\\\"  /*Factoring and Other trade receivables*/else if (TYP_INSTRMNT in {\\\"1020\\\", \\\"1023\\\"}) then     (if (IS_RVLVNG_LN = \\\"T\\\") then \\\"1001\\\"     else if (IS_CRDT_LN_OTHR_RV_CRDT = \\\"T\\\") then \\\"1002\\\"     else \\\"71\\\")     /*Other loans*/else if (TYP_INSTRMNT = \\\"1022\\\") then     (if (IS_RVLVNG_LN = \\\"T\\\") then \\\"1001\\\"     else if (IS_CRDT_LN_OTHR_RV_CRDT = \\\"T\\\") then \\\"1002\\\"     else \\\"1004\\\")    /*for other types of instruments the input classification is equal to the classification required in AnaCredit*/else TYP_INSTRMNT  end operator");
+        customTransformation.put("D_INSTTTNL_SCTR_FINREP_1_0", "/* map: (Institutional sector, International organisation) &rArr; Institutional sector*/ define operator D_INSTTTNL_SCTR_FINREP(INSTTTNL_SCTR IDENTIFIER, INTRNTNL_ORGNSTN_CD IDENTIFIER)  returns string is if (INSTTTNL_SCTR in {\\\"S122_A\\\"} or INTRNTNL_ORGNSTN_CD in MLTLTRL_DVLPMNT_BNKS_FINREP) then \\\"S1_MDB\\\" else if (INSTTTNL_SCTR in Sectors04 or INTRNTNL_TRGNSTN_CD in INTRNTNL_ORGNSTNS_FINREP) then \\\"S13_IO\\\" else INSTTTNL_SCTR  end operator");        
 	}
 
     /**
