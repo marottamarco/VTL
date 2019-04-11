@@ -8,6 +8,7 @@
  ***/
 
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
@@ -25,8 +26,10 @@ import org.sqtds.antlr4.vtl2.Vtl2Parser;
 import static org.sqtds.antlr4.vtl.VtlParser.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class ConvertToVtl2Listener extends VtlBaseListener {
     TokenStream tokens;
@@ -57,7 +60,7 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     		}else if( item instanceof StringCContext ){
     			StringCContext a = (StringCContext)item;
     			   			
-    			rewriter.insertAfter(ctx.getParent().start, String.format(" %s ", a.getText().replace("\"", "")));
+    			rewriter.insertAfter(ctx.getParent().start, String.format(" %s ", a.getText().replace("\"", "").replace(" ","")));
     			rewriter.replace(a.start, "");
     		}else if( item instanceof RoleIDContext ){
     			RoleIDContext a = (RoleIDContext)item;
@@ -140,32 +143,15 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     @Override public void exitElseIfExpr(@NotNull VtlParser.ElseIfExprContext ctx) {
     	logger.info("Entrato:"+ctx.ELSEIF().getText());
     }
+    
+    @Override public void enterDefProcedure(@NotNull VtlParser.DefProcedureContext ctx) {
+    	_functionOrProcedure(ctx);
+    }
 
     @Override
     public void enterDefFunction(VtlParser.DefFunctionContext ctx) {
         // create function -> define operator
-        rewriter.replace(ctx.start, "define operator ");
-        if (ctx.RETURNS() != null) {
-            Token retType = findNextNotWhitespace(tokens, ctx.AS().getSymbol().getTokenIndex() + 1);
-            rewriter.insertBefore(ctx.expr().start, String.format("%s %s %s ", ctx.RETURNS().getText(), retType.getText(), getTokenName(IS)));
-            rewriter.delete(ctx.RETURNS().getSymbol());
-            rewriter.delete(ctx.AS().getSymbol());
-            rewriter.delete(retType);
-        } else {
-            rewriter.insertBefore(ctx.expr().start, String.format(" %s ", getTokenName(IS)));
-        }
-
-        for (VtlParser.ArgContext arg : ctx.argList().arg()) {
-            // TODO: verificare eventuale lettura tipi dal dominio invece di indentifier
-            rewriter.insertAfter(arg.stop, String.format(" %s", getTokenName(IDENTIFIER)));
-        }
-
-        Token openBracket = findNextNotWhitespace(tokens, ctx.argList().getStop().getTokenIndex() + 2);
-        if (openBracket != null)
-            rewriter.delete(openBracket);
-        rewriter.replace(ctx.stop, String.format(" %s %s", getTokenName(END), getV2TokenName(Vtl2Parser.OPERATOR)));
-
-        rewriter.delete(ctx.AS().getSymbol());
+        _functionOrProcedure(ctx);
     }
 
     @Override
@@ -193,35 +179,83 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
         // keep(a, b... -> keep a, b
         Token openBrk = findNextNotWhitespace(tokens, ctx.getStart().getTokenIndex() + 1);
         Token currentToken = null;
+        TerminalNodeImpl a=null;
+        List<ParseTree[]> listRename=new ArrayList<>();
+        ParseTree[] listRenameItem=null;
+        String renameClause="][rename ";
+        
+        /* cancella il prossimo elemento dei membri della clausola KEEP 
+         * se è stato inserito nella lista di elementi da appendere nella clausola rename
+        */ 
+        boolean flagDeleteNextItem=false; 
         
         if (openBrk != null && "(".equals(openBrk.getText())) {
             rewriter.replace(openBrk, " ");
             rewriter.replace(ctx.getStop(), " ");
         }
         
-        //remove double quotes, as
-		for (int count = 1; count < tokens.size(); count++) {
-			if (null != tokens.get(count)) {
-				if (tokens.get(count).getText().equals("as")) {
-					rewriter.replace(tokens.get(count), ", ");
+        if (ctx.setMemberListAlias()==null) {
+        	return;
+        }
+        
+        for (int childCount = ctx.setMemberListAlias().getChildCount(), count=0; ctx.setMemberListAlias() != null && count < childCount; count++) {
+			if (flagDeleteNextItem==true) {
+				if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.StringCContext)
+				{
+					rewriter.delete(((VtlParser.StringCContext)ctx.setMemberListAlias().getChild(count)).stop);
 				}
-				if (tokens.get(count).getText().startsWith("\"") || tokens.get(count).getText().endsWith("\"")) {
-					rewriter.replace(tokens.get(count), tokens.get(count).getText().replaceAll("^\"|\"$", ""));
+				if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.SetMemberContext)
+				{
+					rewriter.delete(((VtlParser.SetMemberContext)ctx.setMemberListAlias().getChild(count)).stop);
 				}
-			}
-		}
-
-        // remove role
-        for (int i = 0; ctx.setMemberListAlias() != null && i < ctx.setMemberListAlias().getChildCount(); ++i) {
-            if (ctx.setMemberListAlias().getChild(i) instanceof TerminalNodeImpl) {
-            	currentToken=((TerminalNodeImpl) ctx.setMemberListAlias().getChild(i)).symbol;
+            	flagDeleteNextItem=false;
+            	continue;
+            }
+        	if (ctx.setMemberListAlias().getChild(count) instanceof TerminalNodeImpl) {
+            	currentToken=((TerminalNodeImpl) ctx.setMemberListAlias().getChild(count)).symbol;
                 if ((currentToken.getType() == VtlParser.ROLE)) {
                     rewriter.delete(currentToken);
                 }
+                if ((currentToken.getType() == VtlParser.AS)) {
+                	listRenameItem=new ParseTree[2];
+                	listRenameItem[0]=ctx.setMemberListAlias().getChild(count-1);
+                	listRenameItem[1]=ctx.setMemberListAlias().getChild(count+1);
+                	listRename.add(listRenameItem);
+                    rewriter.delete(currentToken);
+                    flagDeleteNextItem=true;
+                }
             }
-            if (ctx.setMemberListAlias().getChild(i) instanceof VtlParser.RoleIDContext) {
-                rewriter.delete(((RoleIDContext) ctx.setMemberListAlias().getChild(i)).start);
+            if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.RoleIDContext) {
+                rewriter.delete(((RoleIDContext) ctx.setMemberListAlias().getChild(count)).start);
             }
+            
+        }
+        if (listRename.size()>0) {
+        	for (ParseTree[] item : listRename) {
+        		if (item[0] instanceof VtlParser.StringCContext)
+				{
+        			renameClause+=((VtlParser.StringCContext)item[0]).start.getText().replace("\"","")+" to ";
+					
+				}
+        		if (item[0] instanceof VtlParser.SetMemberContext)
+				{
+        			renameClause+=((VtlParser.SetMemberContext)item[0]).start.getText()+" to ";
+					
+				}
+        		
+        		if (item[1] instanceof VtlParser.StringCContext)
+				{
+        			renameClause+=((VtlParser.StringCContext)item[1]).start.getText().replace("\"","")+", ";
+					
+				}
+        		if (item[1] instanceof VtlParser.SetMemberContext)
+				{
+        			renameClause+=((VtlParser.SetMemberContext)item[1]).start.getText()+", ";
+					
+				}
+        		
+			}
+        	rewriter.replace(ctx.getParent().getParent().getStop(), renameClause.substring(0, renameClause.length() - 2)+" ]");
         }
     }
 
@@ -274,6 +308,10 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 		
 		if (nodeImpl.symbol.getText().equals("elseif")) {
 			rewriter.replace(nodeImpl.symbol, "else if");
+		}
+		
+		if (nodeImpl.symbol.getText().equals("define procedure")) {
+			rewriter.replace(nodeImpl.symbol, "define operator ");
 		}
 		
 		switch (this.currentClause) {
@@ -579,5 +617,61 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 			}
 		}
 	}
+    
+    private void _functionOrProcedure(ParserRuleContext ctx) {
+    	VtlParser.DefFunctionContext ctxFun=null;
+    	VtlParser.DefProcedureContext ctxProc=null;
+    	Token openBracket = null;
+    	Token semiComma = null;
+    	
+    	rewriter.replace(ctx.start, "define operator ");
+    	
+    	if (ctx instanceof VtlParser.DefFunctionContext) {
+    		ctxFun = (VtlParser.DefFunctionContext)ctx;
+    		
+    		if (ctxFun.RETURNS() != null) {
+                Token retType = findNextNotWhitespace(tokens, ctxFun.AS().getSymbol().getTokenIndex() + 1);
+                rewriter.insertBefore(ctxFun.expr().start, String.format("%s %s %s ", ctxFun.RETURNS().getText(), retType.getText(), getTokenName(IS)));
+                rewriter.delete(ctxFun.RETURNS().getSymbol());
+                rewriter.delete(ctxFun.AS().getSymbol());
+                rewriter.delete(retType);
+            } else {
+                rewriter.insertBefore(ctxFun.expr().start, String.format(" %s ", getTokenName(IS)));
+            }
+    		for (VtlParser.ArgContext arg : ctxFun.argList().arg()) {
+                // TODO: verificare eventuale lettura tipi dal dominio invece di indentifier
+                rewriter.insertAfter(arg.stop, String.format(" %s", "scalar"));
+            }
+    		openBracket = findNextNotWhitespace(tokens, ctxFun.argList().getStop().getTokenIndex() + 2);
+    		rewriter.delete(ctxFun.AS().getSymbol());
+    	}
+    	else if (ctx instanceof VtlParser.DefProcedureContext) {
+    		ctxProc= (VtlParser.DefProcedureContext)ctx;
+    		
+    			rewriter.insertBefore(ctxProc.procedureBody().start, String.format(" %s ", getTokenName(IS)));
+                
+                for (VtlParser.ProcedureArgContext arg : ctxProc.procedureArgList().procedureArg()) {
+                    // TODO: verificare eventuale lettura tipi dal dominio invece di indentifier
+                    //rewriter.insertAfter(arg.stop, String.format(" %s", getTokenName(IDENTIFIER)));
+                    if (arg.INPUT() != null) {
+                    	rewriter.delete(arg.INPUT().getSymbol());
+					}
+                    rewriter.delete(arg.AS().getSymbol());
+                    if (arg.OUTPUT() != null) {
+                    	rewriter.delete(arg.OUTPUT().getSymbol());
+					}
+                }
+                openBracket = findNextNotWhitespace(tokens, ctxProc.procedureArgList().getStop().getTokenIndex() + 2);
+                semiComma = findPreviousNotWhitespace(tokens, ctx.getStop().getTokenIndex()-1);
+                if (semiComma.getText().equals(";")) {
+                	rewriter.delete(semiComma);					
+				}
+		}
+    	
+        
+        if (openBracket != null)
+            {rewriter.delete(openBracket);}
+        rewriter.replace(ctx.stop, String.format(" %s %s", getTokenName(END), getV2TokenName(Vtl2Parser.OPERATOR)));
+    }
     
 }
