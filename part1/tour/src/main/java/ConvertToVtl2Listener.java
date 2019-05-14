@@ -46,7 +46,7 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     
     @Override public void enterCalcClauseItem(@NotNull VtlParser.CalcClauseItemContext ctx) {
     	System.out.println("ConvertToVtl2Listener.enterCalcClauseItem");
-    	
+    	String role="";
     	List<ParseTree> childrens = ctx.children;
     	for( ParseTree item : childrens ){
     		if(item instanceof CalcExprContext){
@@ -64,14 +64,14 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     			rewriter.replace(a.start, "");
     		}else if( item instanceof RoleIDContext ){
     			RoleIDContext a = (RoleIDContext)item;
-    			
+    			role=a.getText().toLowerCase();
     			rewriter.replace(a.start, "");
     		}
     	}
     	
-    	rewriter.insertAfter(ctx.getParent().start, String.format(" %s ", getV2TokenName(Vtl2Parser.MEASURE)));
     	if( null != ctx.ROLE() ){
     		rewriter.replace(ctx.ROLE().getSymbol(), "");
+    		rewriter.insertAfter(ctx.getParent().start, String.format(" %s ", role));
     	}
     	rewriter.insertBefore(ctx.start, String.format(" %s ", getV2TokenName(Vtl2Parser.ASSIGN)));
     	
@@ -177,18 +177,38 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
     @Override
     public void enterKeepClause(KeepClauseContext ctx) {
         // keep(a, b... -> keep a, b
-        Token openBrk = findNextNotWhitespace(tokens, ctx.getStart().getTokenIndex() + 1);
-        Token currentToken = null;
-        TerminalNodeImpl a=null;
-        List<ParseTree[]> listRename=new ArrayList<>();
-        ParseTree[] listRenameItem=null;
-        String renameClause="][rename ";
+        Token             openBrk        = findNextNotWhitespace(tokens, ctx.getStart().getTokenIndex() + 1);
+        Token             currentToken       = null;
+        List<ParseTree[]> listRename         = new ArrayList<>();
+        ParseTree[]       listRenameItem     = null;
+        List<String>      listCalc           = new ArrayList<>();
+        List<String>      listMeasure            = new ArrayList<>();
+        List<String>      listGroupby        = new ArrayList<>();
+        String dataSetName="";
+        String            itemClause         = "";                   // identificatore dell'oggetto da inserire in una
+                                                                     // delle clausole successive
+        String            role               = "";
+        String            renameClause       = "";
+        String            calcClause         = "";
+        String            aggrClause         = "";
+        String            groupByClause      = "";
+        String            finalClause         = "";
+        boolean           flagDeleteNextItem  = false;                // cancella il prossimo elemento dei membri della
+                                                                     // clausola KEEP se è stato inserito nella lista di
+                                                                     // elementi da appendere nella clausola rename
         
-        /* cancella il prossimo elemento dei membri della clausola KEEP 
-         * se è stato inserito nella lista di elementi da appendere nella clausola rename
-        */ 
-        boolean flagDeleteNextItem=false; 
+        if (ctx.getChild(0) instanceof TerminalNodeImpl) {
+            currentToken = ((TerminalNodeImpl) ctx.getChild(0)).symbol;
+            dataSetName  = currentToken.getInputStream()
+                                       .toString()
+                                       .substring(
+                                               0,
+                                               currentToken.getInputStream()
+                                                           .toString()
+                                                           .indexOf(":=")).trim();
+        }
         
+        // cancellazione delle parentesi
         if (openBrk != null && "(".equals(openBrk.getText())) {
             rewriter.replace(openBrk, " ");
             rewriter.replace(ctx.getStop(), " ");
@@ -198,65 +218,151 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
         	return;
         }
         
-        for (int childCount = ctx.setMemberListAlias().getChildCount(), count=0; ctx.setMemberListAlias() != null && count < childCount; count++) {
-			if (flagDeleteNextItem==true) {
-				if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.StringCContext)
-				{
-					rewriter.delete(((VtlParser.StringCContext)ctx.setMemberListAlias().getChild(count)).stop);
-				}
-				if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.SetMemberContext)
-				{
-					rewriter.delete(((VtlParser.SetMemberContext)ctx.setMemberListAlias().getChild(count)).stop);
-				}
-            	flagDeleteNextItem=false;
-            	continue;
+        for (int childCount = ctx.setMemberListAlias().getChildCount(), count = 0; ctx.setMemberListAlias() != null
+                && count < childCount; count++) {
+            if (flagDeleteNextItem == true) {
+                if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.StringCContext) {
+                    rewriter.delete(((VtlParser.StringCContext) ctx.setMemberListAlias().getChild(count)).stop);
+                }
+                if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.SetMemberContext) {
+                    rewriter.delete(((VtlParser.SetMemberContext) ctx.setMemberListAlias().getChild(count)).stop);
+                }
+                flagDeleteNextItem = false;
+                continue;
             }
-        	if (ctx.setMemberListAlias().getChild(count) instanceof TerminalNodeImpl) {
-            	currentToken=((TerminalNodeImpl) ctx.setMemberListAlias().getChild(count)).symbol;
+            if (ctx.setMemberListAlias().getChild(count) instanceof TerminalNodeImpl) {
+                currentToken = ((TerminalNodeImpl) ctx.setMemberListAlias().getChild(count)).symbol;
+                
                 if ((currentToken.getType() == VtlParser.ROLE)) {
                     rewriter.delete(currentToken);
                 }
+                
+                if ((currentToken.getType() == 70) && !(ctx.setMemberListAlias()
+                                                           .getChild(count - 1) instanceof VtlParser.RoleIDContext)) {
+                    itemClause = ((SetMemberContext) ctx.setMemberListAlias()
+                                                        .getChild(count - 1)).start.getText();
+                    listCalc.add("identifier " + itemClause + " := " + dataSetName + "#" + itemClause);
+                    listGroupby.add(itemClause);
+                }
+
+                /*
+                 * se ho trovato un token di tipo "AS" allora l'elemento associato viene
+                 * inserito nella lista degli oggetti da rinominare e il prossimo elemento,
+                 * ovvero il token della ridenominazione, viene marcato per la cancellazione
+                 * impostando il flag "flagDeleteNextItem"
+                 */
                 if ((currentToken.getType() == VtlParser.AS)) {
-                	listRenameItem=new ParseTree[2];
-                	listRenameItem[0]=ctx.setMemberListAlias().getChild(count-1);
-                	listRenameItem[1]=ctx.setMemberListAlias().getChild(count+1);
-                	listRename.add(listRenameItem);
+                    listRenameItem    = new ParseTree[2];
+                    listRenameItem[0] = ctx.setMemberListAlias()
+                                           .getChild(count - 1);
+                    listRenameItem[1] = ctx.setMemberListAlias()
+                                           .getChild(count + 1);
+                    listRename.add(listRenameItem);
                     rewriter.delete(currentToken);
-                    flagDeleteNextItem=true;
+                    flagDeleteNextItem = true;
                 }
             }
-            if (ctx.setMemberListAlias().getChild(count) instanceof VtlParser.RoleIDContext) {
-                rewriter.delete(((RoleIDContext) ctx.setMemberListAlias().getChild(count)).start);
+            
+            /*
+             * se ho trovato il token di un ruolo allora l'elemento aggiunto
+             * alla lista degli oggetti da inserire nella clausola "calc" e "group_by"
+             * e il token viene cancellato
+             */
+            if (ctx.setMemberListAlias()
+                   .getChild(count) instanceof VtlParser.RoleIDContext) {
+
+                itemClause = ((SetMemberContext) ctx.setMemberListAlias()
+                                                    .getChild(count - 2)).start.getText();
+                role       = ((RoleIDContext) ctx.setMemberListAlias()
+                                                 .getChild(count)).start.getText();
+
+                if (role.equalsIgnoreCase("identifier")) {
+                    listCalc.add("identifier " + itemClause + " := " + dataSetName + "#" + itemClause);
+                    listGroupby.add(itemClause);
+                }
+                
+                if (role.equalsIgnoreCase("measure")) {
+                    listCalc.add("measure " + itemClause+" := "+dataSetName+"#"+itemClause);
+                    listMeasure.add(itemClause);
+                    /*rewriter.delete(
+                            ((SetMemberContext) ctx.setMemberListAlias()
+                                    .getChild(count - 2)).start);*/
+                }
+                /*rewriter.delete(
+                        ((RoleIDContext) ctx.setMemberListAlias()
+                                            .getChild(count)).start);*/
+            }
+        }
+        
+            if (listMeasure.isEmpty()) {
+                itemClause="measure TMP_AGGR_MSR := 1";
+                listCalc.add(itemClause);
+                listMeasure.add("TMP_AGGR_MSR");
+            }
+        
+            calcClause="calc ";
+            for (String s : listCalc) {
+                calcClause+=s+", ";
+            }
+            calcClause=calcClause.substring(0, calcClause.length() - 2) + " ]";            
+        
+            aggrClause="[aggr ";
+            for (String s : listMeasure) {
+                 aggrClause+=s+" := sum("+dataSetName+"#"+s+"),";
+            }
+            aggrClause=aggrClause.substring(0, aggrClause.length() - 2) + " )";
+            
+            if (!listGroupby.isEmpty()) {
+                groupByClause="group by ";
+                for (String s : listGroupby) {
+                    groupByClause+=s+", ";
+                }
+                groupByClause=groupByClause.substring(0, groupByClause.length() - 2) ;
             }
             
-        }
-        if (listRename.size()>0) {
-        	for (ParseTree[] item : listRename) {
-        		if (item[0] instanceof VtlParser.StringCContext)
-				{
-        			renameClause+=((VtlParser.StringCContext)item[0]).start.getText().replace("\"","")+" to ";
-					
-				}
-        		if (item[0] instanceof VtlParser.SetMemberContext)
-				{
-        			renameClause+=((VtlParser.SetMemberContext)item[0]).start.getText()+" to ";
-					
-				}
-        		
-        		if (item[1] instanceof VtlParser.StringCContext)
-				{
-        			renameClause+=((VtlParser.StringCContext)item[1]).start.getText().replace("\"","")+", ";
-					
-				}
-        		if (item[1] instanceof VtlParser.SetMemberContext)
-				{
-        			renameClause+=((VtlParser.SetMemberContext)item[1]).start.getText()+", ";
-					
-				}
-        		
-			}
-        	rewriter.replace(ctx.getParent().getParent().getStop(), renameClause.substring(0, renameClause.length() - 2)+" ]");
-        }
+            finalClause=calcClause+aggrClause+groupByClause;
+        
+        if (!listRename.isEmpty()) {
+            renameClause="][rename ";
+            for (ParseTree[] item : listRename) {
+
+                /*
+                 * la clausola "Rename" viene costruita con i due componenti che circondavano il
+                 * token "AS", ciascuno dei quali va gestito due volte perchè possono essere di
+                 * due tipi diversi
+                 */
+                if (item[0] instanceof VtlParser.StringCContext) {
+                    renameClause += ((VtlParser.StringCContext) item[0]).start.getText().replace("\"", "") + " to ";
+                }
+                if (item[0] instanceof VtlParser.SetMemberContext) {
+                    renameClause += ((VtlParser.SetMemberContext) item[0]).start.getText() + " to ";
+                }
+                if (item[1] instanceof VtlParser.StringCContext) {
+                    renameClause += ((VtlParser.StringCContext) item[1]).start.getText().replace("\"", "") + ", ";
+                }
+                if (item[1] instanceof VtlParser.SetMemberContext) {
+                    renameClause += ((VtlParser.SetMemberContext) item[1]).start.getText() + ", ";
+                }
+            }
+            }
+        
+            if (!finalClause.isEmpty()) {
+                currentToken=ctx.KEEP().getSymbol();
+                rewriter.replace(ctx.getStart().getTokenIndex(),  ctx.getStop().getTokenIndex(), finalClause);
+                //rewriter.insertAfter(currentToken,finalClause);
+            }
+            
+            //rewriter.replace(ctx.getStart().getTokenIndex(),  ctx.getStop().getTokenIndex(), finalClause);
+            
+            // l'invocazione al metodo substring() serve a togliere la virgola finale in
+            // eccesso
+            if (!renameClause.isEmpty()) {
+            rewriter.replace(
+                    ctx.getParent()
+                       .getParent()
+                       .getStop(),
+                    renameClause.substring(0, renameClause.length() - 2) + " ]");}
+        
     }
 
     @Override
@@ -567,6 +673,8 @@ public class ConvertToVtl2Listener extends VtlBaseListener {
 		}
 		
 	}
+	
+	
 	
 	private static List<Token> getFlatTokenList(ParseTree tree) {
 	    List<Token> tokens = new ArrayList<Token>();
